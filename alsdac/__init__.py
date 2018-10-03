@@ -36,19 +36,23 @@ def set_port(port):
     global PORT
     PORT = port
 
+
 def stream_size(b):
     m = re.match(b'(?P<_0>\d*) Points by (?P<_1>\d*) channels', b)
     if m:
         map(itemgetter(1), sorted(m.groupdict().items()))
-        return map(int,m.groups())
+        return map(int, m.groups())
     return None, None
 
 
 # FIXME: Make sends/receives happen from a threaded hot loop,
 
 def get(data: str) -> bytes:
-    """
-    Starts sender and receiver asynchronous sockets. The sender sends a tcp/ip command to the LabView host system. The
+    """Synchronously get data.  Runs trio internally.
+
+    Starts sender and receiver asynchronous sockets.
+
+    The sender sends a tcp/ip command to the LabView host system. The
     receiver waits to receive a response.
 
     """
@@ -62,7 +66,7 @@ def get(data: str) -> bytes:
             print('sent:', data.strip())
             await client_sock.send_all(bytes(data, ENCODING))
 
-        async def receiver(client_sock:trio.SocketStream):
+        async def receiver(client_sock: trio.SocketStream):
             _data = await client_sock.receive_some(BUFSIZE)
 
             expcols, exprows = stream_size(_data)
@@ -89,12 +93,14 @@ def get(data: str) -> bytes:
 
     return trio.run(_get, data)
 
+
 def write_required(func):
     @wraps(func)
     def execute_if_write_permitted(*args, **kwargs):
         if READ_ONLY:
-            raise PermissionError('Write access is disabled by default to prevent mishaps.\n'
-                                  'To enable write access set alsdac.READ_ONLY = False')
+            raise PermissionError(
+                'Write access is disabled by default to prevent mishaps.\n'
+                'To enable write access set alsdac.READ_ONLY = False')
         else:
             return func(*args, **kwargs)
     return execute_if_write_permitted
@@ -112,9 +118,11 @@ def AtPreset(presetname: str) -> bool:
 def AtTrajectory(trajname: str) -> bool:
     return bool(get(f'AtTrajectory({trajname})\r\n'))
 
+
 @write_required
 def DisableMotor(motorname: str) -> bool:
     return bool(get(f'DisableMotor({motorname})\r\n'))
+
 
 @write_required
 def EnableMotor(motorname: str) -> bool:
@@ -130,7 +138,8 @@ def GetMotor(motorname: str):
     return pos, hex, datetime
     # TODO: fix datetime nonsense
 
-async def GetMotorPos_async(motorname:str, get) -> float:
+
+async def GetMotorPos_async(motorname: str, get) -> float:
     return GetMotorPos(motorname, get=get)
 
 
@@ -143,11 +152,14 @@ def GetMotorStatus(motorname: str) -> bool:  # returns true if move complete
 
 
 def GetSoftLimits(motorname: str) -> Tuple[float, float]:
-    return tuple(map(float, get(f'GetSoftLimits({motorname})\r\n').split(b' ')))[:2]  # The 2 just makes pylint happy :)
+    # The 2 just makes pylint happy :)
+    return tuple(map(float,
+                     get(f'GetSoftLimits({motorname})\r\n').split(b' ')))[:2]
 
 
 def GetFlyingPositions(motorname: str) -> str:
-    return np.frombuffer(get(f'GetFlyingPositions({motorname})\r\n').strip(), dtype=np.single)
+    return np.frombuffer(get(f'GetFlyingPositions({motorname})\r\n').strip(),
+                         dtype=np.single)
     # TODO: confirm
 
 
@@ -166,29 +178,39 @@ def ListTrajectories() -> List[str]:
 def NumberMotors() -> int:
     return int(get('NumberMotors\r\n'))
 
+
 @write_required
 def MoveMotor(motorname: str, pos: Union[float, int]) -> bool:
     return bool(get(f'MoveMotor({motorname}, {pos})\r\n'))
+
 
 @write_required
 def StopMotor(motorname: str):
     return get(f'StopMotor({motorname})\r\n') == b'Motor Stopped\r\n'
 
+
 @write_required
 def HomeMotor(motorname: str):
     return get(f'HomeMotor({motorname})\r\n') == b'OK!0 \r\n'
+
 
 @write_required
 def MoveToPreset(presetname: str) -> bool:
     return bool(get(f'MoveToPreset({presetname})\r\n'))
 
+
 @write_required
 def MoveToTrajectory(trajname: str) -> bool:
     return bool(get(f'MoveToTrajectory({trajname})\r\n'))
 
+
 @write_required
-def SetBreakpoints(motorname: str, first_bp: float, bp_step: float, num_points: int):
-    return get(f'SetBreakpoints({motorname}, {first_bp}, {bp_step}, {num_points})\r\n')
+def SetBreakpoints(motorname: str,
+                   first_bp: float, bp_step: float,
+                   num_points: int):
+    return get(
+        f'SetBreakpoints({motorname}, {first_bp}, {bp_step}, {num_points})\r\n'
+    )
 
 
 # def SetBreakpointRegions(motorname: str, first_bp: float, num_points: int):
@@ -206,6 +228,7 @@ def GetMotorVelocity(motorname: str) -> float:
 
 def GetOrigMotorVelocity(motorname: str) -> float:
     return float(get(f'GetOrigMotorVelocity({motorname})\r\n'))
+
 
 @write_required
 def SetMotorVelocity(motorname: str, vel: float) -> float:
@@ -231,6 +254,7 @@ def ListAIs() -> List[str]:
 def ListDIOs() -> List[str]:
     return str(get('ListDIOs\r\n'), ENCODING).strip().split('\r\n')
 
+
 @write_required
 def StartAcquire(time: float, counts: int):
     return bool(get(f'StartAcquire({time},{counts}\r\n'))
@@ -242,11 +266,14 @@ Instruments
 
 
 def GetInstrumentStatus(instrumentname) -> List[str]:
-    return str(get(f'GetInstrumentStatus({instrumentname})\r\n'), ENCODING).strip().split('\r\n')
+    return str(
+        get(f'GetInstrumentStatus({instrumentname})\r\n'),
+        ENCODING).strip().split('\r\n')
 
 
 def ListInstruments() -> List[str]:
     return str(get('ListInstruments\r\n'), ENCODING).strip().split('\r\n')
+
 
 @write_required
 def StartInstrumentAcquire(instrumentname, time):
@@ -258,10 +285,11 @@ def GetInstrumentAcquired1D(instrumentname):
 
 
 def GetInstrumentAcquired2D(instrumentname):
-    b=get(f'GetInstrumentAcquired2D({instrumentname})\r\n')
+    b = get(f'GetInstrumentAcquired2D({instrumentname})\r\n')
     expcols, exprows = stream_size(b)
-    s=str(b, ENCODING)
-    arr = np.fromstring(s.split('\r\n',maxsplit=1)[1].replace('\r\n','\t'), count=expcols*exprows, sep='\t', dtype=int)
+    s = str(b, ENCODING)
+    arr = np.fromstring(s.split('\r\n', maxsplit=1)[1].replace('\r\n', '\t'),
+                        count=expcols*exprows, sep='\t', dtype=int)
     return arr.reshape((exprows, expcols))
 
 
